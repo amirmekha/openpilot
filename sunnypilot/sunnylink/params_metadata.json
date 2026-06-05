@@ -3,6 +3,28 @@
     "title": "AccessTokenIsNice",
     "description": ""
   },
+  "AccelPersonality": {
+    "title": "Acceleration Profile",
+    "description": "Controls how quickly sunnypilot accelerates while preserving braking and stop behavior.",
+    "options": [
+      {
+        "value": 2,
+        "label": "Eco"
+      },
+      {
+        "value": 1,
+        "label": "Normal"
+      },
+      {
+        "value": 0,
+        "label": "Sport"
+      }
+    ]
+  },
+  "AccelPersonalityEnabled": {
+    "title": "Acceleration Profile Enabled",
+    "description": "Enables acceleration profile selection for longitudinal control."
+  },
   "AdbEnabled": {
     "title": "Enable ADB",
     "description": ""

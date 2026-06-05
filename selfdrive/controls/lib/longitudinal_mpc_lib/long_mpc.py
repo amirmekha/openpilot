@@ -249,7 +249,11 @@ class LongitudinalMpc:
     self.time_linearization = 0.0
     self.time_integrator = 0.0
     self.x0 = np.zeros(X_DIM)
+    self.cruise_max_accel = CRUISE_MAX_ACCEL
     self.set_weights()
+
+  def set_cruise_max_accel(self, cruise_max_accel):
+    self.cruise_max_accel = float(np.clip(cruise_max_accel, 0.1, ACCEL_MAX))
 
   def set_cost_weights(self, cost_weights, constraint_cost_weights):
     W = np.asfortranarray(np.diag(cost_weights))
@@ -331,7 +335,7 @@ class LongitudinalMpc:
     # when the leads are no factor.
     v_lower = v_ego + (T_IDXS * CRUISE_MIN_ACCEL * 1.05)
     # TODO does this make sense when max_a is negative?
-    v_upper = v_ego + (T_IDXS * CRUISE_MAX_ACCEL * 1.05)
+    v_upper = v_ego + (T_IDXS * self.cruise_max_accel * 1.05)
     v_cruise_clipped = np.clip(v_cruise * np.ones(N+1), v_lower, v_upper)
     cruise_obstacle = np.cumsum(T_DIFFS * v_cruise_clipped) + get_safe_obstacle_distance(v_cruise_clipped, t_follow)
 

@@ -11,6 +11,7 @@ from openpilot.common.constants import CV
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
 from openpilot.sunnypilot.selfdrive.controls.lib.dec.dec import DynamicExperimentalController
 from openpilot.sunnypilot.selfdrive.controls.lib.e2e_alerts_helper import E2EAlertsHelper
+from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_accel_controller import LongitudinalAccelerationController
 from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.smart_cruise_control import SmartCruiseControl
 from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_assist import SpeedLimitAssist
 from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolver import SpeedLimitResolver
@@ -23,6 +24,7 @@ LongitudinalPlanSource = custom.LongitudinalPlanSP.LongitudinalPlanSource
 
 class LongitudinalPlannerSP:
   def __init__(self, CP: structs.CarParams, CP_SP: structs.CarParamsSP, mpc):
+    self.mpc = mpc
     self.events_sp = EventsSP()
     self.resolver = SpeedLimitResolver()
     self.dec = DynamicExperimentalController(CP, mpc)
@@ -32,6 +34,7 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
+    self.acceleration_controller = LongitudinalAccelerationController(mpc)
 
     self.output_v_target = 0.
     self.output_a_target = 0.
@@ -73,7 +76,18 @@ class LongitudinalPlannerSP:
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
+  def get_max_accel(self, v_ego: float) -> float:
+    return self.acceleration_controller.max_accel(v_ego)
+
+  def update_mpc_targets(self, sm: messaging.SubMaster, v_ego: float, v_cruise: float, a_desired: float) -> tuple[float, float]:
+    return self.acceleration_controller.update_mpc_targets(sm, v_ego, v_cruise, a_desired)
+
+  def update_accel_target(self, sm: messaging.SubMaster, v_ego: float, output_a_target: float,
+                          output_should_stop: bool) -> tuple[float, bool]:
+    return self.acceleration_controller.update_accel_target(sm, v_ego, output_a_target, output_should_stop)
+
   def update(self, sm: messaging.SubMaster) -> None:
+    self.acceleration_controller.update_params()
     self.events_sp.clear()
     self.dec.update(sm)
     self.e2e_alerts_helper.update(sm, self.events_sp)
@@ -87,6 +101,7 @@ class LongitudinalPlannerSP:
     longitudinalPlanSP.longitudinalPlanSource = self.source
     longitudinalPlanSP.vTarget = float(self.output_v_target)
     longitudinalPlanSP.aTarget = float(self.output_a_target)
+    longitudinalPlanSP.accelPersonality = self.acceleration_controller.cereal_accel_personality()
     longitudinalPlanSP.events = self.events_sp.to_msg()
 
     # Dynamic Experimental Control
