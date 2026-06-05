@@ -43,6 +43,14 @@ sections:
       label: Relaxed
     enablement:
     - $ref: '#/macros/longitudinal'
+  - key: AccelPersonalityEnabled
+    widget: toggle
+    title: Enable Acceleration Profiles
+    description: Enables acceleration profile selection for longitudinal control.
+    visibility:
+    - $ref: '#/macros/longitudinal'
+    enablement:
+    - $ref: '#/macros/longitudinal'
   - key: AccelPersonality
     widget: multiple_button
     title: Acceleration Profile
@@ -56,6 +64,9 @@ sections:
       label: Sport
     enablement:
     - $ref: '#/macros/longitudinal'
+    - type: param
+      key: AccelPersonalityEnabled
+      equals: true
   - key: IntelligentCruiseButtonManagement
     widget: toggle
     title: Intelligent Cruise Button Management (ICBM) (Alpha)
