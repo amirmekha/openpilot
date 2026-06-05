@@ -21,6 +21,7 @@ LEAD_GAP_GAIN = 0.10
 LEAD_SOFT_BRAKE_BUFFER = 1.5
 EMERGENCY_TTC = 1.8
 EMERGENCY_GAP_RATIO = 0.55
+EMERGENCY_LEAD_BRAKE = 2.5
 FORCE_DECEL_ACCEL_CAP = -0.05
 SNG_START_ACCEL_BP = [0.0, 0.5, 2.0]
 
@@ -58,7 +59,13 @@ class LongitudinalComfortController:
 
     cap = float(np.clip(min(caps), ACCEL_MIN, -0.05))
     ttc = d_rel / max(closing_speed, 0.1) if closing_speed > 0.1 else float('inf')
-    emergency = cap < COMFORT_ACCEL_MIN or d_rel < desired_gap * EMERGENCY_GAP_RATIO or ttc < EMERGENCY_TTC
+    # A lead braking hard at matched speed has closing_speed≈0 (so ttc is inf and the cap can stay
+    # above COMFORT_ACCEL_MIN for a few frames). Flag emergency on the lead's deceleration directly
+    # so we are not floored to the comfort limit when the lead slams the brakes.
+    emergency = (cap < COMFORT_ACCEL_MIN or
+                 d_rel < desired_gap * EMERGENCY_GAP_RATIO or
+                 ttc < EMERGENCY_TTC or
+                 (lead_brake > EMERGENCY_LEAD_BRAKE and d_rel < desired_gap))
     return cap, emergency
 
   def lead_start_accel(self, sm, v_ego):
@@ -92,9 +99,15 @@ class LongitudinalComfortController:
     return accel_cap, emergency
 
   def apply(self, output_a_target, output_should_stop, sm, v_ego):
+    plan_a_target = output_a_target
     accel_cap, emergency = self.accel_cap(sm, v_ego)
     if accel_cap is not None:
       output_a_target = min(output_a_target, accel_cap)
+
+    # The comfort floor only limits braking that this controller adds; it must never weaken a
+    # brake the planner itself requested (e.g. an e2e/vision or MPC hard stop with no radar lead).
+    if plan_a_target < COMFORT_ACCEL_MIN:
+      emergency = True
 
     min_accel = ACCEL_MIN if emergency else COMFORT_ACCEL_MIN
     if output_should_stop and v_ego < 5.0 and not emergency:
@@ -125,8 +138,12 @@ class LongitudinalAccelerationController:
 
   def update_accel_target(self, sm, v_ego: float, output_a_target: float,
                           output_should_stop: bool) -> tuple[float, bool]:
+    accel_cap, _ = self.comfort_controller.accel_cap(sm, v_ego)
+
     start_accel = self.comfort_controller.lead_start_accel(sm, v_ego)
-    if start_accel is not None:
+    # Only commit to a start-and-go launch when no lead is demanding braking this cycle, otherwise
+    # we would clear should_stop and then immediately re-clamp the accel negative (a hesitant lurch).
+    if start_accel is not None and (accel_cap is None or accel_cap >= 0.0):
       output_should_stop = False
       output_a_target = max(output_a_target, start_accel)
 

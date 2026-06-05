@@ -37,7 +37,13 @@ class LongControlController:
     positive_cap = np.interp(a_target, NEGATIVE_TARGET_POSITIVE_CAP_BP, NEGATIVE_TARGET_POSITIVE_CAP_V)
     return min(output_accel, float(positive_cap))
 
-  def limit_output(self, output_accel: float, last_output_accel: float, should_stop: bool) -> float:
+  def limit_output(self, output_accel: float, last_output_accel: float, should_stop: bool,
+                   is_starting: bool = False) -> float:
+    # On a start-and-go the previous output is the stopped-state (negative) accel; ramping the
+    # launch up from there lags the planner's "go". Launch the positive ramp from ~0 instead.
+    if is_starting:
+      last_output_accel = max(last_output_accel, 0.0)
+
     if should_stop or output_accel <= last_output_accel:
       return output_accel
 

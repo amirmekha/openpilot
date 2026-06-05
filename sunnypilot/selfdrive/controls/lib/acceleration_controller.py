@@ -11,7 +11,6 @@ import numpy as np
 
 from cereal import custom
 from openpilot.common.params import Params, UnknownKeyName
-from openpilot.sunnypilot import get_sanitize_int_param
 
 ACCELERATION_PROFILE_PARAM = "AccelPersonality"
 ACCELERATION_PROFILE_ENABLED_PARAM = "AccelPersonalityEnabled"
@@ -19,8 +18,6 @@ ACCEL_MAX_BP = [0.0, 10.0, 25.0, 40.0]
 
 AccelerationProfile = custom.LongitudinalPlanSP.AccelerationPersonality
 ACCELERATION_PROFILE_VALUES = tuple(AccelerationProfile.schema.enumerants.values())
-ACCELERATION_PROFILE_MIN = min(ACCELERATION_PROFILE_VALUES)
-ACCELERATION_PROFILE_MAX = max(ACCELERATION_PROFILE_VALUES)
 
 
 @dataclass(frozen=True)
@@ -74,12 +71,12 @@ class AccelerationProfileController:
         self.profile = AccelerationProfile.normal
         return
 
-      profile = get_sanitize_int_param(
-        ACCELERATION_PROFILE_PARAM,
-        ACCELERATION_PROFILE_MIN,
-        ACCELERATION_PROFILE_MAX,
-        self.params,
-      )
+      profile = self.params.get(ACCELERATION_PROFILE_PARAM, return_default=True)
+      if profile not in ACCELERATION_PROFILE_VALUES:
+        # Corrupted/out-of-range value: reset to the documented default rather than clipping to an
+        # arbitrary enum endpoint (which would depend on enum ordering).
+        profile = AccelerationProfile.normal
+        self.params.put(ACCELERATION_PROFILE_PARAM, int(profile), block=True)
     except UnknownKeyName:
       profile = AccelerationProfile.normal
 

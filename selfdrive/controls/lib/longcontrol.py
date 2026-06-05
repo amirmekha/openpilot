@@ -93,6 +93,7 @@ class LongControl:
       output_accel = self.sp_controller.limit_pid_output(output_accel, a_target, error, CS)
 
     if self.long_control_state != LongCtrlState.off:
-      output_accel = self.sp_controller.limit_output(output_accel, self.last_output_accel, should_stop)
+      output_accel = self.sp_controller.limit_output(output_accel, self.last_output_accel, should_stop,
+                                                     is_starting=self.long_control_state == LongCtrlState.starting)
     self.last_output_accel = np.clip(output_accel, accel_limits[0], accel_limits[1])
     return self.last_output_accel
